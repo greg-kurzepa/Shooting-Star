@@ -7,6 +7,8 @@ import sys
 
 import analysephoto as analyse
 
+print("NOTE TO SELF: Discuss error magnitudes of historgam and the comet areas it gives, relative to acceptable error")
+
 def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
     # gets rid of weird pygame tiff warnings about extra metadata it doensn't know about
     import ctypes
