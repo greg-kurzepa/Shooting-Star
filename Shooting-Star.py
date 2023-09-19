@@ -100,6 +100,7 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
         for idx, row in metrics_df.iterrows():
             photos[row["photo_idx"]].cells[row["cell_idx"]].flag = row["flag"]
             photos[row["photo_idx"]].cells[row["cell_idx"]].update_hist_boundary(row["hist_boundary_idx"])
+            pygame_zoomed[row["photo_idx"]][row["cell_idx"]] = cv2pygame(photos[row["photo_idx"]].cells[row["cell_idx"]].get_zoomed_rgba_outlines(), width, height)
         print("Found and loaded metrics_recent.csv")
     else:
         print("Did not find a metrics_recent.csv, will generate a new one")
