@@ -142,7 +142,6 @@ class Photo:
             cell.zoomed_photo = cell.gray_photo[cell.bottomleft[1]:cell.bottomleft[1]+cell.height,cell.bottomleft[0]:cell.bottomleft[0]+cell.width]
 
             extracted_cells.append(cell)
-            # plt.imshow(cell.bw_photo, cmap="gray"), plt.show()
 
         # body+comet objects, exclude dim sections which probably aren't cells
         median_intensity = statistics.median([cell.cell_avg_intensity for cell in extracted_cells])
@@ -159,15 +158,6 @@ class Photo:
             max_idx = max(np.argmax(cell.histogram_freqs[min_threshold_bin_no:])+min_threshold_bin_no-2, 0)
 
             cell.update_hist_boundary(max_idx)
-
-        # show everything
-        # display = np.zeros((self.cells[0].gray_photo.shape[0], self.cells[0].gray_photo.shape[1],3), np.uint8)
-        # display[:,:,1] = self.gray_photo # green is photo
-        # display[:,:,2] = self.get_overall_img(lam=lambda x:x.body_outline) # red is body
-        # display[:,:,0] = self.get_overall_img(lam=lambda x:x.comet_outline) # blue is comet
-        # figManager = plt.get_current_fig_manager()
-        # figManager.window.showMaximized()
-        # plt.imshow(display, cmap="gray"), plt.show()
 
         return nb_blobs, im_with_separated_blobs, stats, _
     
