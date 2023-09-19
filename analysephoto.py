@@ -83,9 +83,6 @@ class Cell:
         # plt.imshow(display, cmap="gray"), plt.show()
         return display
 
-    def __str__(self):
-        return "print(Cell) not implemented yet"
-
 class Photo:
     def __init__(self, image_dir):
         self.photo = u.readim(image_dir, cv.IMREAD_UNCHANGED) # colour version of input photo
