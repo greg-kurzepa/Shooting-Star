@@ -51,6 +51,9 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
             "cell_area_px" : [],
             "body_area_px" : [],
             "comet_area_px" : [],
+            "avg_cell_intensity" : [],
+            "avg_body_intensity" : [],
+            "avg_comet_intensity" : [],
         }
         for p_idx, photo in enumerate(photos):
             for c_idx, cell in enumerate(photo.cells):
@@ -62,6 +65,9 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
                 metrics_dict["cell_area_px"].append(cell.cell_area)
                 metrics_dict["body_area_px"].append(cell.body_area)
                 metrics_dict["comet_area_px"].append(cell.comet_area)
+                metrics_dict["avg_cell_intensity"].append(cell.cell_avg_intensity)
+                metrics_dict["avg_body_intensity"].append(cell.body_avg_intensity)
+                metrics_dict["avg_comet_intensity"].append(cell.comet_avg_intensity)
         metrics_df = pd.DataFrame(metrics_dict)
         df_sav_dir = os.path.join(batch_root_dir, f"metrics {save_time_str}.csv")
         metrics_df.to_csv(df_sav_dir)

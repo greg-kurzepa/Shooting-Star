@@ -13,12 +13,16 @@ class Cell:
         self.cell_area = None
 
         self.coords = None # list of tuples containing coordinates of every pixel contained in cell
-        self.cell_avg_intensity = None # average intensity of cell
 
         self.body = None # grayscale photo of cell body only
         self.body_area = None
         self.comet = None # grayscale photo of cell comet only
         self.comet_area = None
+
+        # average pixel values. all are eventually output to the csv in ranges 0-1.
+        self.cell_avg_intensity = None # 0-255
+        self.body_avg_intensity = None # 0-1
+        self.comet_avg_intensity = None # 0-1
 
         self.histogram_freqs = None # histogram of pixel intensities in cell
         self.histogram_edges = None
@@ -67,6 +71,9 @@ class Cell:
         self.body_area = np.count_nonzero(self.body)
         self.comet_area = np.count_nonzero(self.comet)
 
+        self.body_avg_intensity = np.sum((self.body/255) * (self.gray_photo/255)) / self.body_area
+        self.comet_avg_intensity = np.sum((self.comet/255) * (self.gray_photo/255)) / self.comet_area
+
         self.body_outline = cv.Canny(self.body, 100, 200)
         self.comet_outline = cv.Canny(self.comet, 100, 200)
 
@@ -87,6 +94,7 @@ class Photo:
     def __init__(self, image_dir):
         self.photo = u.readim(image_dir, cv.IMREAD_UNCHANGED) # colour version of input photo
         self.gray_photo = u.readim(image_dir, cv.IMREAD_GRAYSCALE) # grayscale version of input photo
+        self.gray_photo = (self.gray_photo / self.gray_photo.max() * 255).astype(np.uint8)
 
         self.cells = None
         self.nb_blobs, self.im_with_separated_blobs, self.stats, self._ = self.find_cells()
