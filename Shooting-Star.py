@@ -86,8 +86,8 @@ def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_wind
 
     # load and analyse images
     print("Loading and analysing images...")
-    original_files = list(os.scandir(original_image_dir))[:4]
-    preprocessed_files = list(os.scandir(preprocessed_image_dir))[:4]
+    original_files = list(os.scandir(original_image_dir))
+    preprocessed_files = list(os.scandir(preprocessed_image_dir))
     photos = []
     pygame_photos = []
     pygame_image_dims = []
