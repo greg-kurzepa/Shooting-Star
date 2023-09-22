@@ -9,6 +9,7 @@ import utility as u
 class Cell:
     def __init__(self):
         self.gray_photo = None # grayscale photo of this cell only
+        self.original_gray_photo = None
         self.bw_photo = None # black and white photo of this cell only
         self.cell_area = None
 
@@ -19,10 +20,9 @@ class Cell:
         self.comet = None # grayscale photo of cell comet only
         self.comet_area = None
 
-        # average pixel values. all are eventually output to the csv in ranges 0-1.
-        self.cell_avg_intensity = None # 0-255
-        self.body_avg_intensity = None # 0-1
-        self.comet_avg_intensity = None # 0-1
+        self.body_sum_normalised_intensity = None
+        self.comet_sum_normalised_intensity = None
+        self.comet_proportion_intensity = None
 
         self.histogram_freqs = None # histogram of pixel intensities in cell
         self.histogram_edges = None
@@ -39,7 +39,7 @@ class Cell:
         self.comet_outline = None
 
         # used for displaying zoomed mode in pygame
-        self.zoomed_photo = None
+        self.zoomed_original_photo = None
         self.zoomed_body_outline = None
         self.zoomed_comet_outline = None
 
@@ -71,8 +71,9 @@ class Cell:
         self.body_area = np.count_nonzero(self.body)
         self.comet_area = np.count_nonzero(self.comet)
 
-        self.body_avg_intensity = np.sum((self.body/255) * (self.gray_photo/255)) / self.body_area
-        self.comet_avg_intensity = np.sum((self.comet/255) * (self.gray_photo/255)) / self.comet_area
+        self.body_sum_normalised_intensity = np.sum((self.body/255) * (self.original_gray_photo/255))
+        self.comet_sum_normalised_intensity = np.sum((self.comet/255) * (self.original_gray_photo/255))
+        self.comet_proportion_intensity = self.comet_sum_normalised_intensity / (self.comet_sum_normalised_intensity + self.body_sum_normalised_intensity)
 
         self.body_outline = cv.Canny(self.body, 100, 200)
         self.comet_outline = cv.Canny(self.comet, 100, 200)
@@ -80,20 +81,23 @@ class Cell:
         self.zoomed_body_outline = self.body_outline[self.bottomleft[1]:self.bottomleft[1]+self.height,self.bottomleft[0]:self.bottomleft[0]+self.width]
         self.zoomed_comet_outline = self.comet_outline[self.bottomleft[1]:self.bottomleft[1]+self.height,self.bottomleft[0]:self.bottomleft[0]+self.width]
 
+        in_dilate_size = 2
+        self.body_outline = cv.dilate(self.body_outline, cv.getStructuringElement(cv.MORPH_ELLIPSE, (in_dilate_size, in_dilate_size)))
+        self.comet_outline = cv.dilate(self.comet_outline, cv.getStructuringElement(cv.MORPH_ELLIPSE, (in_dilate_size, in_dilate_size)))
+
     def get_zoomed_rgba_outlines(self):
-        display = np.zeros((self.zoomed_photo.shape[0], self.zoomed_photo.shape[1], 4), np.uint8)
-        display[:,:,3] = 255
-        display[:,:,1] = self.zoomed_photo # green is photo
+        display = self.zoomed_original_photo
         display[:,:,2] = self.zoomed_body_outline # red is body
         display[:,:,0] = self.zoomed_comet_outline # blue is comet
-        display[cv.cvtColor(display, cv.COLOR_BGRA2GRAY) == 0][3] = 0
         # plt.imshow(display, cmap="gray"), plt.show()
         return display
 
 class Photo:
-    def __init__(self, image_dir):
-        self.photo = u.readim(image_dir, cv.IMREAD_UNCHANGED) # colour version of input photo
-        self.gray_photo = u.readim(image_dir, cv.IMREAD_GRAYSCALE) # grayscale version of input photo
+    def __init__(self, original_dir, preprocessed_dir):
+        self.original_photo = u.readim(original_dir, cv.IMREAD_UNCHANGED)
+        self.original_gray_photo = cv.cvtColor(self.original_photo, cv.COLOR_BGR2GRAY)
+        self.photo = u.readim(preprocessed_dir, cv.IMREAD_UNCHANGED) # colour version of input photo
+        self.gray_photo = u.readim(preprocessed_dir, cv.IMREAD_GRAYSCALE) # grayscale version of input photo
         self.gray_photo = (self.gray_photo / self.gray_photo.max() * 255).astype(np.uint8)
 
         self.cells = None
@@ -144,7 +148,9 @@ class Photo:
             cell.width = stats[i][2]
             cell.height = stats[i][3]
 
-            cell.zoomed_photo = cell.gray_photo[cell.bottomleft[1]:cell.bottomleft[1]+cell.height,cell.bottomleft[0]:cell.bottomleft[0]+cell.width]
+            cell.original_gray_photo = self.original_gray_photo # pointer to above orginal_gray_photo that cell can access
+
+            cell.zoomed_original_photo = self.original_photo[cell.bottomleft[1]:cell.bottomleft[1]+cell.height,cell.bottomleft[0]:cell.bottomleft[0]+cell.width]
 
             extracted_cells.append(cell)
 
@@ -173,11 +179,8 @@ class Photo:
         return img
     
     def get_rgba_outlines(self):
-        display = np.zeros((self.cells[0].gray_photo.shape[0], self.cells[0].gray_photo.shape[1], 4), np.uint8)
-        display[:,:,3] = 255
-        display[:,:,1] = self.gray_photo # green is photo
+        display = self.original_photo
         display[:,:,2] = self.get_overall_img(lam=lambda x:x.body_outline) # red is body
         display[:,:,0] = self.get_overall_img(lam=lambda x:x.comet_outline) # blue is comet
-        display[cv.cvtColor(display, cv.COLOR_BGRA2GRAY) == 0][3] = 0
         # plt.imshow(display, cmap="gray"), plt.show()
         return display

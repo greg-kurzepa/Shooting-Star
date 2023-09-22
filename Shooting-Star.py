@@ -4,21 +4,23 @@ import pandas as pd
 from tqdm import tqdm
 import time
 import sys
+import cv2
 
 import analysephoto as analyse
+import utility as u
 
 print("NOTE TO SELF: Discuss error magnitudes of historgam and the comet areas it gives, relative to acceptable error")
 
-def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
-    # gets rid of weird pygame tiff warnings about extra metadata it doensn't know about
-    import ctypes
-    libbytiff = ctypes.CDLL("libtiff-5.dll")
-    libbytiff.TIFFSetWarningHandler.argtypes = [ctypes.c_void_p]
-    libbytiff.TIFFSetWarningHandler.restype = ctypes.c_void_p
-    libbytiff.TIFFSetWarningHandler(None)
+def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_window_width=1366, pygame_window_height=768):
+    # UNCOMMENT ON WINDOWS: gets rid of annoying pygame tiff warnings about extra metadata it doensn't know about
+    # import ctypes
+    # libbytiff = ctypes.CDLL("libtiff-5.dll")
+    # libbytiff.TIFFSetWarningHandler.argtypes = [ctypes.c_void_p]
+    # libbytiff.TIFFSetWarningHandler.restype = ctypes.c_void_p
+    # libbytiff.TIFFSetWarningHandler(None)
 
     def cv2pygame(img, target_width, target_height):
-        return resize_to_fit(pygame.image.frombuffer(img.tobytes(), img.shape[:2][1::-1], "BGRA"), target_width, target_height)[0]
+        return resize_to_fit(pygame.image.frombuffer(img.tobytes(), img.shape[:2][1::-1], "BGR"), target_width, target_height)[0]
 
     # transforms coordinate from pygame to opencv
     def c(x, y):
@@ -51,13 +53,13 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
             "cell_area_px" : [],
             "body_area_px" : [],
             "comet_area_px" : [],
-            "avg_cell_intensity" : [],
-            "avg_body_intensity" : [],
-            "avg_comet_intensity" : [],
+            "body_total_intensity" : [],
+            "comet_total_intensity" : [],
+            "comet_percentage_intensity" : [],
         }
         for p_idx, photo in enumerate(photos):
             for c_idx, cell in enumerate(photo.cells):
-                metrics_dict["photo_name"].append(files[p_idx].name)
+                metrics_dict["photo_name"].append(preprocessed_files[p_idx].name)
                 metrics_dict["photo_idx"].append(p_idx)
                 metrics_dict["cell_idx"].append(c_idx)
                 metrics_dict["flag"].append(cell.flag)
@@ -65,32 +67,37 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
                 metrics_dict["cell_area_px"].append(cell.cell_area)
                 metrics_dict["body_area_px"].append(cell.body_area)
                 metrics_dict["comet_area_px"].append(cell.comet_area)
-                metrics_dict["avg_cell_intensity"].append(cell.cell_avg_intensity)
-                metrics_dict["avg_body_intensity"].append(cell.body_avg_intensity)
-                metrics_dict["avg_comet_intensity"].append(cell.comet_avg_intensity)
+                metrics_dict["body_total_intensity"].append(cell.body_sum_normalised_intensity)
+                metrics_dict["comet_total_intensity"].append(cell.comet_sum_normalised_intensity)
+                metrics_dict["comet_percentage_intensity"].append(cell.comet_proportion_intensity*100)
         metrics_df = pd.DataFrame(metrics_dict)
         df_sav_dir = os.path.join(batch_root_dir, f"metrics {save_time_str}.csv")
         metrics_df.to_csv(df_sav_dir)
-        metrics_df.to_csv(os.path.join(batch_root_dir, f"metrics_recent.csv"))
+        try:
+            metrics_df.to_csv(os.path.join(batch_root_dir, f"metrics_recent.csv"))
+        except PermissionError:
+            raise PermissionError(f"Could not open metrics_recent.csv! Please make sure you do not have the file opened in another software. PROGRESS HAS STILL BEEN SAVED IN {save_time_str}.csv, TO LOAD THIS NEXT TIME RENAME IT TO metrics_recent.csv")
         print(f"Saved metrics as {df_sav_dir} and metrics_recent.csv")
 
     pygame.init()
     size = width, height = (int(pygame_window_width), int(pygame_window_height))
 
-    images_dir = os.path.join(batch_root_dir, "Images")
     save_time_str = time.strftime('%Y%m%d-%H%M%S')
 
     # load and analyse images
     print("Loading and analysing images...")
-    files = list(os.scandir(images_dir))[:4]
+    original_files = list(os.scandir(original_image_dir))[:4]
+    preprocessed_files = list(os.scandir(preprocessed_image_dir))[:4]
     photos = []
     pygame_photos = []
     pygame_image_dims = []
     pygame_zoomed = []
-    for file in tqdm(files):
-        file_dir = os.path.join(images_dir, file.name)
-        photos.append(analyse.Photo(file_dir))
-        ret = resize_to_fit(pygame.image.load(file_dir), width, height)
+    for original_file, preprocessed_file in tqdm(zip(original_files, preprocessed_files), total=len(original_files)):
+        original_dir = os.path.join(original_image_dir, original_file.name)
+        preprocessed_dir = os.path.join(preprocessed_image_dir, preprocessed_file.name)
+        photos.append(analyse.Photo(original_dir, preprocessed_dir))
+
+        ret = resize_to_fit(pygame.image.load(original_dir), width, height)
         pygame_photos.append(ret[0])
         pygame_image_dims.append((ret[1], ret[2]))
 
@@ -120,7 +127,7 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
     photo_width, photo_height = pygame_image_dims[curr_photo_idx]
     screen = pygame.display.set_mode(size)
     cell_outline_img = cv2pygame(curr_photo.get_rgba_outlines(), width, height)
-    pygame.display.set_caption(files[curr_photo_idx].name)
+    pygame.display.set_caption(preprocessed_files[curr_photo_idx].name)
     done_action = False
     end_pygame = False
     mousedown = False
@@ -145,7 +152,7 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
                     curr_photo = photos[curr_photo_idx]
                     cell_outline_img = cv2pygame(curr_photo.get_rgba_outlines(), width, height)
                     photo_width, photo_height = pygame_image_dims[curr_photo_idx]
-                    pygame.display.set_caption(files[curr_photo_idx].name)
+                    pygame.display.set_caption(preprocessed_files[curr_photo_idx].name)
                     save_df()
                 elif event.key == pygame.K_RIGHT and curr_photo_idx < len(pygame_photos)-1 and not zoomed:
                     # print("going right!")
@@ -155,7 +162,7 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
                     curr_photo = photos[curr_photo_idx]
                     cell_outline_img = cv2pygame(curr_photo.get_rgba_outlines(), width, height)
                     photo_width, photo_height = pygame_image_dims[curr_photo_idx]
-                    pygame.display.set_caption(files[curr_photo_idx].name)
+                    pygame.display.set_caption(preprocessed_files[curr_photo_idx].name)
                     save_df()
                 elif event.key == pygame.K_z and curr_cell_idx is not None and curr_cell.flag == "normal":
                         # print("toggling zoom!")
@@ -178,7 +185,7 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
 
         if not zoomed:
             #blit photo
-            screen.blit(pygame_photos[curr_photo_idx], (0,0))
+            # screen.blit(pygame_photos[curr_photo_idx], (0,0))
 
             # blit boundaries of normal cells
             screen.blit(cell_outline_img, (0,0))
@@ -233,5 +240,10 @@ def main(batch_root_dir, pygame_window_width=1366, pygame_window_height=768):
     save_df()
 
 if __name__ == "__main__":
-    terminal_args = sys.argv[1:]
-    main(*terminal_args)
+    # terminal_args = sys.argv[1:]
+    batch_root_dir = "Batch2"
+    original_image_dir = os.path.join(batch_root_dir, "Original")
+    preprocessed_image_dir = os.path.join(batch_root_dir, "Preprocessed")
+    pygame_window_width, pygame_window_height = 1366, 768
+
+    main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_window_width, pygame_window_height)
