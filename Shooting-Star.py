@@ -10,7 +10,6 @@ import analysephoto as analyse
 import utility as u
 
 print("NOTE TO SELF: Discuss error magnitudes of historgam and the comet areas it gives, relative to acceptable error")
-
 def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_window_width=1366, pygame_window_height=768):
     # UNCOMMENT ON WINDOWS: gets rid of annoying pygame tiff warnings about extra metadata it doensn't know about
     # import ctypes
@@ -24,13 +23,13 @@ def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_wind
 
     # transforms coordinate from pygame to opencv
     def c(x, y):
-        img_width = curr_photo.photo.shape[1]
-        img_height = curr_photo.photo.shape[0]
+        img_width = curr_photo.gray_photo.shape[1]
+        img_height = curr_photo.gray_photo.shape[0]
         return int(img_width*x/photo_width), int(img_height*(y)/photo_height)
     # transforms coordinate from opencv to pygame
     def p(x, y):
-        img_width = curr_photo.photo.shape[1]
-        img_height = curr_photo.photo.shape[0]
+        img_width = curr_photo.gray_photo.shape[1]
+        img_height = curr_photo.gray_photo.shape[0]
         return int(photo_width*x/img_width), int(photo_height*y/img_height)
 
     def resize_to_fit(pygame_img, target_width, target_height):
@@ -86,8 +85,8 @@ def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_wind
 
     # load and analyse images
     print("Loading and analysing images...")
-    original_files = list(os.scandir(original_image_dir))
-    preprocessed_files = list(os.scandir(preprocessed_image_dir))
+    original_files = [x for x in list(os.scandir(original_image_dir)) if x.name[-4:].lower() in (".tif", ".png", ".jpg", ".jpeg")]
+    preprocessed_files = [x for x in list(os.scandir(preprocessed_image_dir)) if x.name[-4:].lower() in (".tif", ".png", ".jpg", ".jpeg")]
     photos = []
     pygame_photos = []
     pygame_image_dims = []
@@ -107,14 +106,18 @@ def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_wind
     print("Done loading and analysing images")
 
     # load csv, to get cell flags and histogram boundaries
+    print("Loading metrics file...")
     df_dir = os.path.join(batch_root_dir, "metrics_recent.csv")
     if os.path.isfile(df_dir):
-        metrics_df = pd.read_csv(df_dir)
-        for idx, row in metrics_df.iterrows():
-            photos[row["photo_idx"]].cells[row["cell_idx"]].flag = row["flag"]
-            photos[row["photo_idx"]].cells[row["cell_idx"]].update_hist_boundary(row["hist_boundary_idx"])
-            pygame_zoomed[row["photo_idx"]][row["cell_idx"]] = cv2pygame(photos[row["photo_idx"]].cells[row["cell_idx"]].get_zoomed_rgba_outlines(), width, height)
-        print("Found and loaded metrics_recent.csv")
+        try:
+            metrics_df = pd.read_csv(df_dir)
+            for idx, row in metrics_df.iterrows():
+                photos[row["photo_idx"]].cells[row["cell_idx"]].flag = row["flag"]
+                photos[row["photo_idx"]].cells[row["cell_idx"]].update_hist_boundary(row["hist_boundary_idx"])
+                pygame_zoomed[row["photo_idx"]][row["cell_idx"]] = cv2pygame(photos[row["photo_idx"]].cells[row["cell_idx"]].get_zoomed_rgba_outlines(), width, height)
+            print("Found and loaded metrics_recent.csv")
+        except:
+            raise RuntimeError("Error when loading metrics_recent.csv, please delete it and run this again")
     else:
         print("Did not find a metrics_recent.csv, will generate a new one")
 
@@ -192,7 +195,7 @@ def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_wind
 
             # blit bounding box of selected cell
             if curr_cell_idx is not None:
-                box_w, box_h = int(width*curr_cell.width/curr_photo.photo.shape[1]), int(height*curr_cell.height/curr_photo.photo.shape[0])
+                box_w, box_h = int(width*curr_cell.width/curr_photo.gray_photo.shape[1]), int(height*curr_cell.height/curr_photo.gray_photo.shape[0])
                 left, top = p(curr_cell.bottomleft[0], curr_cell.bottomleft[1])
                 pygame.draw.rect(screen, (200,200,200), pygame.Rect(left-5, top-5, box_w+10, box_h+10), width=1)
 
@@ -203,7 +206,7 @@ def main(batch_root_dir, original_image_dir, preprocessed_image_dir, pygame_wind
                 if mousepos[0] <= cell.bottomleft[0]+cell.width+5 and mousepos[0] > cell.bottomleft[0]-5 and mousepos[1] <= cell.bottomleft[1]+cell.height+5 and mousepos[1] > cell.bottomleft[1]-5:
                     hovering_on_any_cell = True
                     if curr_cell_idx != idx:
-                        box_w, box_h = int(width*cell.width/curr_photo.photo.shape[1]), int(height*cell.height/curr_photo.photo.shape[0])
+                        box_w, box_h = int(width*cell.width/curr_photo.gray_photo.shape[1]), int(height*cell.height/curr_photo.gray_photo.shape[0])
                         left, top = p(cell.bottomleft[0], cell.bottomleft[1])
                         # print(box_w, box_h, bottom, left, cell.bottomleft[0], cell.bottomleft[1])
                         pygame.draw.rect(screen, (100,100,100), pygame.Rect(left-5, top-5, box_w+10, box_h+10), width=1)

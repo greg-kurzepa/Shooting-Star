@@ -5,7 +5,6 @@ import statistics
 import math
 
 import utility as u
-
 class Cell:
     def __init__(self):
         self.gray_photo = None # grayscale photo of this cell only
@@ -96,8 +95,11 @@ class Photo:
     def __init__(self, original_dir, preprocessed_dir):
         self.original_photo = u.readim(original_dir, cv.IMREAD_UNCHANGED)
         self.original_gray_photo = cv.cvtColor(self.original_photo, cv.COLOR_BGR2GRAY)
-        self.photo = u.readim(preprocessed_dir, cv.IMREAD_UNCHANGED) # colour version of input photo
-        self.gray_photo = u.readim(preprocessed_dir, cv.IMREAD_GRAYSCALE) # grayscale version of input photo
+
+        self.gray_photo = u.readim(original_dir, cv.IMREAD_GRAYSCALE) # grayscale version of input photo
+        # subtract background & normalise to 0-255
+        disc = cv.getStructuringElement(cv.MORPH_ELLIPSE, (50,50))
+        self.gray_photo = cv.morphologyEx(self.gray_photo, cv.MORPH_TOPHAT, disc)
         self.gray_photo = (self.gray_photo / self.gray_photo.max() * 255).astype(np.uint8)
 
         self.cells = None
@@ -117,7 +119,7 @@ class Photo:
         min_prop_size = 0.0003
         im_result = np.zeros_like(im_with_separated_blobs).astype(np.uint8)
         # for every component in the image, keep it only if it's above min_size
-        px_count = self.photo.shape[0] * self.photo.shape[1]
+        px_count = self.original_photo.shape[0] * self.original_photo.shape[1]
         for blob in range(nb_blobs):
             if sizes[blob] >= px_count*min_prop_size:
                 # see description of im_with_separated_blobs above
