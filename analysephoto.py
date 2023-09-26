@@ -5,10 +5,13 @@ import statistics
 import math
 
 import utility as u
+
+zoom_buf = 20 # number of px in each direction that zoom mode will leave in that isn't part of the cell bounding box
+
 class Cell:
     def __init__(self):
         self.gray_photo = None # grayscale photo of this cell only
-        self.original_gray_photo = None
+        self.original_gray_photo = None # original entire photo including all cells
         self.bw_photo = None # black and white photo of this cell only
         self.cell_area = None
 
@@ -28,7 +31,7 @@ class Cell:
         self.hist_boundary_idx = None # index in histogram of body/comet threshold
 
         # coordinate information of overall cell
-        self.bottomleft = None
+        self.topleft = None # (y,x) value of topleft corner
         self.width = None
         self.height = None
 
@@ -39,6 +42,7 @@ class Cell:
 
         # used for displaying zoomed mode in pygame
         self.zoomed_original_photo = None
+        self.zoomed_gray_photo = None
         self.zoomed_body_outline = None
         self.zoomed_comet_outline = None
 
@@ -77,29 +81,32 @@ class Cell:
         self.body_outline = cv.Canny(self.body, 100, 200)
         self.comet_outline = cv.Canny(self.comet, 100, 200)
 
-        self.zoomed_body_outline = self.body_outline[self.bottomleft[1]:self.bottomleft[1]+self.height,self.bottomleft[0]:self.bottomleft[0]+self.width]
-        self.zoomed_comet_outline = self.comet_outline[self.bottomleft[1]:self.bottomleft[1]+self.height,self.bottomleft[0]:self.bottomleft[0]+self.width]
+        self.zoomed_body_outline = self.body_outline[max(self.topleft[0]-zoom_buf, 0):min(self.topleft[0]+self.height+zoom_buf, self.original_gray_photo.shape[0]),
+                                                     max(self.topleft[1]-zoom_buf, 0):min(self.topleft[1]+self.width+zoom_buf, self.original_gray_photo.shape[1])]
+        self.zoomed_comet_outline = self.comet_outline[max(self.topleft[0]-zoom_buf, 0):min(self.topleft[0]+self.height+zoom_buf, self.original_gray_photo.shape[0]),
+                                                       max(self.topleft[1]-zoom_buf, 0):min(self.topleft[1]+self.width+zoom_buf, self.original_gray_photo.shape[1])]
 
         in_dilate_size = 2
         self.body_outline = cv.dilate(self.body_outline, cv.getStructuringElement(cv.MORPH_ELLIPSE, (in_dilate_size, in_dilate_size)))
         self.comet_outline = cv.dilate(self.comet_outline, cv.getStructuringElement(cv.MORPH_ELLIPSE, (in_dilate_size, in_dilate_size)))
 
     def get_zoomed_rgba_outlines(self):
-        display = self.zoomed_original_photo
+        # display = self.zoomed_original_photo
+        display = np.zeros_like(self.zoomed_original_photo, np.uint8)
+        display[:,:,1] = self.zoomed_gray_photo
         display[:,:,2] = self.zoomed_body_outline # red is body
         display[:,:,0] = self.zoomed_comet_outline # blue is comet
         # plt.imshow(display, cmap="gray"), plt.show()
         return display
 
 class Photo:
-    def __init__(self, original_dir, preprocessed_dir):
-        self.original_photo = u.readim(original_dir, cv.IMREAD_UNCHANGED)
+    def __init__(self, image_dir):
+        self.original_photo = u.readim(image_dir, cv.IMREAD_UNCHANGED)
         self.original_gray_photo = cv.cvtColor(self.original_photo, cv.COLOR_BGR2GRAY)
 
-        self.gray_photo = u.readim(original_dir, cv.IMREAD_GRAYSCALE) # grayscale version of input photo
         # subtract background & normalise to 0-255
-        disc = cv.getStructuringElement(cv.MORPH_ELLIPSE, (50,50))
-        self.gray_photo = cv.morphologyEx(self.gray_photo, cv.MORPH_TOPHAT, disc)
+        disc = cv.getStructuringElement(cv.MORPH_ELLIPSE, (100,100))
+        self.gray_photo = cv.morphologyEx(self.original_gray_photo, cv.MORPH_TOPHAT, disc)
         self.gray_photo = (self.gray_photo / self.gray_photo.max() * 255).astype(np.uint8)
 
         self.cells = None
@@ -146,13 +153,18 @@ class Photo:
             cell.coords = zip(selected_coords[0], selected_coords[1]) # list of all coords the body+comet takes up
             cell.cell_avg_intensity = sum([self.gray_photo[idx] for idx in cell.coords]) / len(selected_coords[0])
 
-            cell.bottomleft = (stats[i][0], stats[i][1])
+            cell.topleft = (stats[i][1], stats[i][0]) # y, x value
             cell.width = stats[i][2]
             cell.height = stats[i][3]
 
             cell.original_gray_photo = self.original_gray_photo # pointer to above orginal_gray_photo that cell can access
-
-            cell.zoomed_original_photo = self.original_photo[cell.bottomleft[1]:cell.bottomleft[1]+cell.height,cell.bottomleft[0]:cell.bottomleft[0]+cell.width]
+            # print(max(cell.topleft[0]-cell.height-zoom_buf, 0),min(cell.topleft[0]+zoom_buf, self.original_gray_photo.shape[0]),
+            #       max(cell.topleft[1]-zoom_buf, 0),min(cell.topleft[1]+cell.width+zoom_buf, self.original_gray_photo.shape[1]), "|",
+            #       cell.topleft[0]-cell.height, cell.topleft[0], cell.topleft[1], cell.topleft[1]+cell.width)
+            cell.zoomed_original_photo = self.original_photo[max(cell.topleft[0]-zoom_buf, 0):min(cell.topleft[0]+cell.height+zoom_buf, self.original_gray_photo.shape[0]),
+                                                             max(cell.topleft[1]-zoom_buf, 0):min(cell.topleft[1]+cell.width+zoom_buf, self.original_gray_photo.shape[1])]
+            cell.zoomed_gray_photo = cell.gray_photo[max(cell.topleft[0]-zoom_buf, 0):min(cell.topleft[0]+cell.height+zoom_buf, self.original_gray_photo.shape[0]),
+                                                     max(cell.topleft[1]-zoom_buf, 0):min(cell.topleft[1]+cell.width+zoom_buf, self.original_gray_photo.shape[1])]
 
             extracted_cells.append(cell)
 
@@ -174,15 +186,17 @@ class Photo:
 
         return nb_blobs, im_with_separated_blobs, stats, _
     
-    def get_overall_img(self, lam):
+    def get_overall_img(self, lam, include_outliers=True):
         img = np.zeros_like(self.cells[0].bw_photo).astype(np.uint8)
         for cell in self.cells:
-            if cell.flag == "normal": img += lam(cell)
+            if include_outliers or cell.flag == "normal": img += lam(cell)
         return img
     
     def get_rgba_outlines(self):
-        display = self.original_photo
-        display[:,:,2] = self.get_overall_img(lam=lambda x:x.body_outline) # red is body
-        display[:,:,0] = self.get_overall_img(lam=lambda x:x.comet_outline) # blue is comet
+        # display = self.original_photo
+        display = np.zeros_like(self.original_photo, np.uint8)
+        display[:,:,1] = self.get_overall_img(lam=lambda x:x.gray_photo, include_outliers=True)
+        display[:,:,2] = self.get_overall_img(lam=lambda x:x.body_outline, include_outliers=False) # red is body
+        display[:,:,0] = self.get_overall_img(lam=lambda x:x.comet_outline, include_outliers=False) # blue is comet
         # plt.imshow(display, cmap="gray"), plt.show()
         return display
