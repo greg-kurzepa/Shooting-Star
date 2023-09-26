@@ -85,7 +85,7 @@ def main(batch_root_dir, image_dir, pygame_window_width=1366, pygame_window_heig
 
     # load and analyse images
     print("Loading and analysing images...")
-    files = [x for x in list(os.scandir(image_dir)) if x.name[-4:].lower() in (".tif", ".png", ".jpg", ".jpeg")]
+    files = [x for x in list(os.scandir(image_dir)) if os.path.splitext(x.name)[1].lower() in (".tif", ".png", ".jpg", ".jpeg")]
     photos = []
     pygame_photos = []
     pygame_image_dims = []
