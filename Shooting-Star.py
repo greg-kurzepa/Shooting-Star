@@ -3,14 +3,11 @@ import pygame
 import pandas as pd
 from tqdm import tqdm
 import time
-import sys
-import cv2
 
 import analysephoto as analyse
-import utility as u
 
 print("NOTE TO SELF: Discuss error magnitudes of historgam and the comet areas it gives, relative to acceptable error")
-def main(batch_root_dir, image_dir, pygame_window_width=1366, pygame_window_height=768):
+def main(batch_root_dir, image_dir, pygame_window_width=1366, pygame_window_height=768, initial_threshold=30):
     # UNCOMMENT ON WINDOWS: gets rid of annoying pygame tiff warnings about extra metadata it doensn't know about
     # import ctypes
     # libbytiff = ctypes.CDLL("libtiff-5.dll")
@@ -91,7 +88,7 @@ def main(batch_root_dir, image_dir, pygame_window_width=1366, pygame_window_heig
     pygame_image_dims = []
     pygame_zoomed = []
     for file in tqdm(files):
-        photos.append(analyse.Photo(os.path.join(image_dir, file.name)))
+        photos.append(analyse.Photo(os.path.join(image_dir, file.name), initial_threshold))
 
         ret = resize_to_fit(pygame.image.load(os.path.join(image_dir, file.name)), width, height)
         pygame_photos.append(ret[0])
@@ -238,9 +235,9 @@ def main(batch_root_dir, image_dir, pygame_window_width=1366, pygame_window_heig
     save_df()
 
 if __name__ == "__main__":
-    # terminal_args = sys.argv[1:]
-    batch_root_dir = "Batch2"
-    image_dir = os.path.join(batch_root_dir, "Images")
-    pygame_window_width, pygame_window_height = 1366, 768
+    batch_root_dir = "Batch2" # folder to save metrics csv files in
+    image_dir = os.path.join(batch_root_dir, "Images") # folder that cell images are stored in
+    pygame_window_width, pygame_window_height = 1366, 768 # resolution of window, adjust to what is comfortable
+    initial_threshold = 30 # value, 0-255, that the image is thresholded at after the subtract background step. the higher this value, the more aggressively dark pixels are removed.
 
-    main(batch_root_dir, image_dir, pygame_window_width, pygame_window_height)
+    main(batch_root_dir, image_dir, pygame_window_width, pygame_window_height, initial_threshold)

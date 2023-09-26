@@ -100,7 +100,7 @@ class Cell:
         return display
 
 class Photo:
-    def __init__(self, image_dir):
+    def __init__(self, image_dir, initial_threshold=30):
         self.original_photo = u.readim(image_dir, cv.IMREAD_UNCHANGED)
         self.original_gray_photo = cv.cvtColor(self.original_photo, cv.COLOR_BGR2GRAY)
 
@@ -110,11 +110,11 @@ class Photo:
         self.gray_photo = (self.gray_photo / self.gray_photo.max() * 255).astype(np.uint8)
 
         self.cells = None
-        self.nb_blobs, self.im_with_separated_blobs, self.stats, self._ = self.find_cells()
+        self.nb_blobs, self.im_with_separated_blobs, self.stats, self._ = self.find_cells(initial_threshold)
     
-    def find_cells(self):
+    def find_cells(self, initial_threshold):
         # global thresholding
-        ret1,th1 = cv.threshold(self.gray_photo, 20, 255, cv.THRESH_BINARY)
+        ret1,th1 = cv.threshold(self.gray_photo, initial_threshold, 255, cv.THRESH_BINARY)
 
         # create array of blobs
         nb_blobs, im_with_separated_blobs, stats, _ = cv.connectedComponentsWithStats(th1)
