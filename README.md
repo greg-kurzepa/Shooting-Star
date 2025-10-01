@@ -1,5 +1,7 @@
 # A Cell Comet Assay Analysis Tool
 
+Uses OpenCV to process comet assay images and automatically extract metrics, allowing manual exclusion of outlier cells and adjustment of cell regions.
+
 Easily exclude outlier cells
 <img width="1058" height="595" alt="example1" src="https://github.com/user-attachments/assets/7b0b4560-c465-4f9f-b1d8-5099e1649d23" />
 Easily change the threshold between cell and comet regions
